@@ -2,7 +2,7 @@
   "name": "task-tracker",
   "version": "1.0.0",
   "scripts": {
-    "build": "cd frontend && npm install && npm run build",
+    "build": "cd backend && npm install && cd ../frontend && npm install && npm run build",
     "start": "node backend/server.js",
     "install-all": "cd backend && npm install && cd ../frontend && npm install"
   },
