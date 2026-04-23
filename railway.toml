@@ -1,0 +1,7 @@
+[build]
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "NODE_ENV=production node backend/server.js"
+healthcheckPath = "/api/sections"
+restartPolicyType = "on_failure"
