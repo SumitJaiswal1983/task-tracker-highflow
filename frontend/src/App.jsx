@@ -4,6 +4,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import TaskList from './components/TaskList';
 import Users from './components/Users';
+import PeopleAndSections from './components/PeopleAndSections';
 
 const SHEETS = [
   { id: 'Unit 1', label: 'Unit 1' },
@@ -51,6 +52,11 @@ export default function App() {
             Tasks
           </button>
           {user.role === 'admin' && (
+            <button className={`nav-tab${tab === 'people' ? ' active' : ''}`} onClick={() => setTab('people')}>
+              People & Sections
+            </button>
+          )}
+          {user.role === 'admin' && (
             <button className={`nav-tab${tab === 'users' ? ' active' : ''}`} onClick={() => setTab('users')}>
               Users
             </button>
@@ -58,7 +64,7 @@ export default function App() {
         </nav>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {tab !== 'users' && (
+          {tab !== 'users' && tab !== 'people' && (
             <div className="sheet-switcher">
               {SHEETS.map(s => (
                 <button
@@ -92,6 +98,7 @@ export default function App() {
       <main className="page">
         {tab === 'dashboard' && <Dashboard sheetName={sheet} />}
         {tab === 'tasks' && <TaskList sheetName={sheet} currentUser={user} />}
+        {tab === 'people' && user.role === 'admin' && <PeopleAndSections />}
         {tab === 'users' && user.role === 'admin' && <Users currentUser={user} />}
       </main>
     </>

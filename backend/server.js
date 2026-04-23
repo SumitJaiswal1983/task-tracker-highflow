@@ -5,6 +5,8 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
+const cron = require('node-cron');
+const { sendWhatsApp, buildMessage } = require('./whatsapp');
 
 const app = express();
 app.use(cors());
@@ -78,7 +80,8 @@ async function initDB() {
 
     CREATE TABLE IF NOT EXISTS tt_stakeholders (
       id SERIAL PRIMARY KEY,
-      name VARCHAR(255) UNIQUE NOT NULL
+      name VARCHAR(255) UNIQUE NOT NULL,
+      whatsapp_number VARCHAR(20)
     );
 
     CREATE TABLE IF NOT EXISTS tt_users (
@@ -89,6 +92,8 @@ async function initDB() {
       role VARCHAR(50) DEFAULT 'viewer',
       created_at TIMESTAMP DEFAULT NOW()
     );
+
+    ALTER TABLE tt_stakeholders ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(20);
 
     INSERT INTO tt_sections (name) VALUES
       ('Assembly'), ('Claim'), ('Rotary'), ('Packing'), ('IT'),
@@ -188,7 +193,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
 
 app.get('/api/users', auth, adminOnly, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id,name,email,role,created_at FROM tt_users ORDER BY created_at ASC');
+    const { rows } = await pool.query('SELECT id,name,email,role,whatsapp_number,created_at FROM tt_users ORDER BY created_at ASC');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -197,12 +202,12 @@ app.get('/api/users', auth, adminOnly, async (req, res) => {
 
 app.post('/api/users', auth, adminOnly, async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, whatsapp_number } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'Name, email, password required' });
     const hash = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
-      `INSERT INTO tt_users (name, email, password, role) VALUES ($1,$2,$3,$4) RETURNING id,name,email,role,created_at`,
-      [name, email.toLowerCase(), hash, role || 'viewer']
+      `INSERT INTO tt_users (name, email, password, role, whatsapp_number) VALUES ($1,$2,$3,$4,$5) RETURNING id,name,email,role,whatsapp_number,created_at`,
+      [name, email.toLowerCase(), hash, role || 'viewer', whatsapp_number || null]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -213,15 +218,15 @@ app.post('/api/users', auth, adminOnly, async (req, res) => {
 
 app.put('/api/users/:id', auth, adminOnly, async (req, res) => {
   try {
-    const { name, email, role, password } = req.body;
+    const { name, email, role, password, whatsapp_number } = req.body;
     let q, params;
     if (password) {
       const hash = await bcrypt.hash(password, 10);
-      q = `UPDATE tt_users SET name=$1, email=$2, role=$3, password=$4 WHERE id=$5 RETURNING id,name,email,role,created_at`;
-      params = [name, email.toLowerCase(), role, hash, req.params.id];
+      q = `UPDATE tt_users SET name=$1, email=$2, role=$3, password=$4, whatsapp_number=$5 WHERE id=$6 RETURNING id,name,email,role,whatsapp_number,created_at`;
+      params = [name, email.toLowerCase(), role, hash, whatsapp_number || null, req.params.id];
     } else {
-      q = `UPDATE tt_users SET name=$1, email=$2, role=$3 WHERE id=$4 RETURNING id,name,email,role,created_at`;
-      params = [name, email.toLowerCase(), role, req.params.id];
+      q = `UPDATE tt_users SET name=$1, email=$2, role=$3, whatsapp_number=$4 WHERE id=$5 RETURNING id,name,email,role,whatsapp_number,created_at`;
+      params = [name, email.toLowerCase(), role, whatsapp_number || null, req.params.id];
     }
     const { rows } = await pool.query(q, params);
     res.json(rows[0]);
@@ -351,17 +356,95 @@ app.get('/api/dashboard', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// sections — ?full=true returns {id,name}[], else string[]
 app.get('/api/sections', auth, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT name FROM tt_sections ORDER BY name');
+    const { rows } = await pool.query('SELECT id, name FROM tt_sections ORDER BY name');
+    if (req.query.full === 'true') return res.json(rows);
     res.json(rows.map(r => r.name));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/sections', auth, adminOnly, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    const { rows } = await pool.query(
+      'INSERT INTO tt_sections (name) VALUES ($1) RETURNING id, name', [name.trim()]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Section already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/sections/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    const { rows } = await pool.query(
+      'UPDATE tt_sections SET name=$1 WHERE id=$2 RETURNING id, name', [name.trim(), req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Section already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/sections/:id', auth, adminOnly, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM tt_sections WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// stakeholders/people — ?full=true returns {id,name,whatsapp_number}[], else string[]
 app.get('/api/stakeholders', auth, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT name FROM tt_stakeholders ORDER BY name');
+    const { rows } = await pool.query('SELECT id, name, whatsapp_number FROM tt_stakeholders ORDER BY name');
+    if (req.query.full === 'true') return res.json(rows);
     res.json(rows.map(r => r.name));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/stakeholders', auth, adminOnly, async (req, res) => {
+  try {
+    const { name, whatsapp_number } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    const { rows } = await pool.query(
+      'INSERT INTO tt_stakeholders (name, whatsapp_number) VALUES ($1,$2) RETURNING id, name, whatsapp_number',
+      [name.trim(), whatsapp_number || null]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Person already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/stakeholders/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const { name, whatsapp_number } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    const { rows } = await pool.query(
+      'UPDATE tt_stakeholders SET name=$1, whatsapp_number=$2 WHERE id=$3 RETURNING id, name, whatsapp_number',
+      [name.trim(), whatsapp_number || null, req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Person already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/stakeholders/:id', auth, adminOnly, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM tt_stakeholders WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -382,6 +465,43 @@ app.post('/api/weekly-scores', auth, async (req, res) => {
     );
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========================
+// WHATSAPP
+// ========================
+
+async function sendPendingTasksToAll() {
+  console.log('WhatsApp cron: sending pending task reminders...');
+  const { rows: people } = await pool.query(
+    `SELECT id, name, whatsapp_number FROM tt_stakeholders WHERE whatsapp_number IS NOT NULL AND whatsapp_number != ''`
+  );
+  for (const person of people) {
+    const { rows: tasks } = await pool.query(
+      `SELECT * FROM tt_tasks WHERE completion_date IS NULL AND LOWER(stakeholder) = LOWER($1) ORDER BY id ASC`,
+      [person.name]
+    );
+    if (tasks.length === 0) {
+      console.log(`WhatsApp: no pending tasks for ${person.name}, skipping`);
+      continue;
+    }
+    const message = buildMessage(person.name, tasks);
+    await sendWhatsApp(person.whatsapp_number, message);
+  }
+  console.log('WhatsApp cron: done');
+}
+
+// Daily 9:00 AM IST (3:30 AM UTC)
+cron.schedule('30 3 * * *', sendPendingTasksToAll, { timezone: 'UTC' });
+
+// Manual trigger — admin only
+app.post('/api/whatsapp/send-now', auth, adminOnly, async (req, res) => {
+  try {
+    await sendPendingTasksToAll();
+    res.json({ success: true, message: 'WhatsApp reminders sent' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ========================

@@ -9,6 +9,7 @@ function UserModal({ user, onClose, onSaved }) {
     email: user?.email || '',
     role: user?.role || 'viewer',
     password: '',
+    whatsapp_number: user?.whatsapp_number || '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -22,7 +23,7 @@ function UserModal({ user, onClose, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      const payload = { name: form.name, email: form.email, role: form.role };
+      const payload = { name: form.name, email: form.email, role: form.role, whatsapp_number: form.whatsapp_number || null };
       if (form.password) payload.password = form.password;
       if (user) {
         await api.updateUser(user.id, payload);
@@ -72,6 +73,16 @@ function UserModal({ user, onClose, onSaved }) {
                   onChange={e => set('password', e.target.value)}
                   placeholder={user ? 'Leave blank to keep current' : 'Min 6 characters'}
                 />
+              </div>
+              <div className="form-group">
+                <label className="form-label">WhatsApp Number (with country code)</label>
+                <input
+                  className="form-control"
+                  value={form.whatsapp_number}
+                  onChange={e => set('whatsapp_number', e.target.value)}
+                  placeholder="e.g. 919876543210"
+                />
+                <span style={{ fontSize: 11, color: '#888' }}>Daily morning pending task reminder bheja jaayega</span>
               </div>
             </div>
           </div>
@@ -140,6 +151,7 @@ export default function Users({ currentUser }) {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
+                  <th>WhatsApp</th>
                   <th>Created</th>
                   <th>Actions</th>
                 </tr>
@@ -158,6 +170,11 @@ export default function Users({ currentUser }) {
                       <span className={`badge ${u.role === 'admin' ? 'badge-completed' : 'badge-section'}`}>
                         {u.role === 'admin' ? 'Admin' : 'Viewer'}
                       </span>
+                    </td>
+                    <td style={{ color: '#555', fontSize: 12 }}>
+                      {u.whatsapp_number
+                        ? <span style={{ color: '#2e7d32', fontWeight: 600 }}>+{u.whatsapp_number}</span>
+                        : <span style={{ color: '#bbb' }}>—</span>}
                     </td>
                     <td style={{ color: '#888', fontSize: 12 }}>{fmtDate(u.created_at)}</td>
                     <td>

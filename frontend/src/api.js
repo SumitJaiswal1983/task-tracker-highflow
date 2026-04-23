@@ -49,7 +49,18 @@ export const api = {
     return req(`/dashboard${q ? '?' + q : ''}`);
   },
   getSections: () => req('/sections'),
+  getSectionsFull: () => req('/sections?full=true'),
+  createSection: data => req('/sections', { method: 'POST', body: JSON.stringify(data) }),
+  updateSection: (id, data) => req(`/sections/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSection: id => req(`/sections/${id}`, { method: 'DELETE' }),
+
   getStakeholders: () => req('/stakeholders'),
+  getPeopleFull: () => req('/stakeholders?full=true'),
+  createPerson: data => req('/stakeholders', { method: 'POST', body: JSON.stringify(data) }),
+  updatePerson: (id, data) => req(`/stakeholders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePerson: id => req(`/stakeholders/${id}`, { method: 'DELETE' }),
   getWeeklyScores: () => req('/weekly-scores'),
   saveWeeklyScore: data => req('/weekly-scores', { method: 'POST', body: JSON.stringify(data) }),
+
+  sendWhatsAppNow: () => req('/whatsapp/send-now', { method: 'POST' }),
 };
