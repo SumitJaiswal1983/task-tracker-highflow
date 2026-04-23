@@ -2,9 +2,9 @@
 set -e
 
 echo "Installing backend dependencies..."
-cd backend && npm install
+cd backend && npm install --production
 
-echo "Installing frontend dependencies and building..."
-cd ../frontend && npm install && npm run build
+echo "Installing frontend dependencies (including dev)..."
+cd ../frontend && npm install --include=dev && npm run build
 
 echo "Build complete!"
