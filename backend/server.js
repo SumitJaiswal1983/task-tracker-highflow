@@ -510,6 +510,20 @@ app.post('/api/whatsapp/send-now', auth, adminOnly, async (req, res) => {
 });
 
 // ========================
+// PRIVACY POLICY
+// ========================
+app.get('/privacy', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Privacy Policy – Highflow Task Tracker</title>
+  <style>body{font-family:sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#333;line-height:1.6}h1{color:#1a237e}</style></head>
+  <body><h1>Privacy Policy</h1><p><strong>App:</strong> Highflow Task Tracker &nbsp;|&nbsp; <strong>Owner:</strong> Highflow Industries Pvt Ltd</p>
+  <p>This app is an internal business tool used by Highflow Industries Pvt Ltd to manage and delegate tasks to team members and stakeholders.</p>
+  <h2>Data We Collect</h2><ul><li>Employee names and WhatsApp numbers (for task reminders)</li><li>Task details entered by authorised users</li></ul>
+  <h2>How We Use Data</h2><ul><li>To send daily WhatsApp reminders about pending tasks to relevant team members</li><li>Internal task tracking and reporting only</li></ul>
+  <h2>Data Sharing</h2><p>No personal data is shared with third parties. WhatsApp messages are sent via the Meta WhatsApp Business API.</p>
+  <h2>Contact</h2><p>sumit@highflow.in</p></body></html>`);
+});
+
+// ========================
 // SERVE FRONTEND (prod)
 // ========================
 if (process.env.NODE_ENV === 'production') {
