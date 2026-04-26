@@ -60,8 +60,17 @@ function PeoplePanel() {
   async function sendNow() {
     if (!window.confirm('Abhi sabko WhatsApp reminder bhejein?')) return;
     setSending(true);
-    try { await api.sendWhatsAppNow(); alert('WhatsApp reminders bhej diye gaye!'); }
-    catch (e) { alert('Error: ' + e.message); }
+    try {
+      const res = await api.sendWhatsAppNow();
+      const lines = (res.results || []).map(r => {
+        if (r.status === 'skipped') return `⏭ ${r.name}: koi pending task nahi`;
+        if (r.ok) return `✅ ${r.name} (+${r.number}): sent (${r.taskCount} tasks)`;
+        return `❌ ${r.name} (+${r.number}): FAILED — ${r.error}`;
+      });
+      alert(lines.length ? lines.join('\n') : 'Koi WhatsApp number set nahi hai');
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
     setSending(false);
   }
 

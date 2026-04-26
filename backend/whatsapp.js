@@ -32,11 +32,11 @@ function buildMessage(userName, tasks) {
 
 async function sendWhatsApp(toNumber, text) {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
-    console.error('WhatsApp: WA_PHONE_NUMBER_ID or WA_ACCESS_TOKEN not set');
-    return false;
+    const msg = 'WA_PHONE_NUMBER_ID or WA_ACCESS_TOKEN not set in env';
+    console.error('WhatsApp:', msg);
+    return { ok: false, error: msg };
   }
 
-  // Normalize number: remove +, spaces, dashes; ensure starts with country code
   const number = toNumber.replace(/[\s\-\+]/g, '');
 
   const body = {
@@ -57,11 +57,13 @@ async function sendWhatsApp(toNumber, text) {
 
   const data = await res.json();
   if (!res.ok) {
-    console.error(`WhatsApp send failed to ${number}:`, JSON.stringify(data));
-    return false;
+    const errMsg = data?.error?.message || JSON.stringify(data);
+    const errCode = data?.error?.code;
+    console.error(`WhatsApp FAILED to ${number} [code ${errCode}]:`, errMsg);
+    return { ok: false, error: errMsg, code: errCode, raw: data };
   }
   console.log(`WhatsApp sent to ${number}: message id ${data.messages?.[0]?.id}`);
-  return true;
+  return { ok: true, messageId: data.messages?.[0]?.id };
 }
 
 module.exports = { sendWhatsApp, buildMessage };

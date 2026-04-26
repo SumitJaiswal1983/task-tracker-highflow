@@ -476,6 +476,7 @@ async function sendPendingTasksToAll() {
   const { rows: people } = await pool.query(
     `SELECT id, name, whatsapp_number FROM tt_stakeholders WHERE whatsapp_number IS NOT NULL AND whatsapp_number != ''`
   );
+  const results = [];
   for (const person of people) {
     const { rows: tasks } = await pool.query(
       `SELECT * FROM tt_tasks WHERE completion_date IS NULL AND LOWER(stakeholder) = LOWER($1) ORDER BY id ASC`,
@@ -483,12 +484,15 @@ async function sendPendingTasksToAll() {
     );
     if (tasks.length === 0) {
       console.log(`WhatsApp: no pending tasks for ${person.name}, skipping`);
+      results.push({ name: person.name, number: person.whatsapp_number, status: 'skipped', reason: 'no pending tasks' });
       continue;
     }
     const message = buildMessage(person.name, tasks);
-    await sendWhatsApp(person.whatsapp_number, message);
+    const result = await sendWhatsApp(person.whatsapp_number, message);
+    results.push({ name: person.name, number: person.whatsapp_number, taskCount: tasks.length, ...result });
   }
-  console.log('WhatsApp cron: done');
+  console.log('WhatsApp cron: done', JSON.stringify(results));
+  return results;
 }
 
 // Daily 9:00 AM IST (3:30 AM UTC)
@@ -497,8 +501,9 @@ cron.schedule('30 3 * * *', sendPendingTasksToAll, { timezone: 'UTC' });
 // Manual trigger — admin only
 app.post('/api/whatsapp/send-now', auth, adminOnly, async (req, res) => {
   try {
-    await sendPendingTasksToAll();
-    res.json({ success: true, message: 'WhatsApp reminders sent' });
+    const results = await sendPendingTasksToAll();
+    const failed = results.filter(r => r.ok === false);
+    res.json({ success: true, results, failCount: failed.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
