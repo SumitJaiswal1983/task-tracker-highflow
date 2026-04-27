@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const cron = require('node-cron');
-const { sendWhatsApp } = require('./whatsapp');
+const { sendWhatsApp, sendWhatsAppTemplate, buildMessage } = require('./whatsapp');
 
 const app = express();
 app.use(cors());
@@ -487,7 +487,9 @@ async function sendPendingTasksToAll() {
       results.push({ name: person.name, number: person.whatsapp_number, status: 'skipped', reason: 'no pending tasks' });
       continue;
     }
-    const result = await sendWhatsApp(person.whatsapp_number, person.name, tasks.length);
+    await sendWhatsAppTemplate(person.whatsapp_number, person.name, tasks.length);
+    const message = buildMessage(person.name, tasks);
+    const result = await sendWhatsApp(person.whatsapp_number, message);
     results.push({ name: person.name, number: person.whatsapp_number, taskCount: tasks.length, ...result });
   }
   console.log('WhatsApp cron: done', JSON.stringify(results));
