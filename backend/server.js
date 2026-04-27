@@ -487,7 +487,6 @@ async function sendPendingTasksToAll() {
       results.push({ name: person.name, number: person.whatsapp_number, status: 'skipped', reason: 'no pending tasks' });
       continue;
     }
-    await sendWhatsAppTemplate(person.whatsapp_number, person.name, tasks.length);
     const message = buildMessage(person.name, tasks);
     const result = await sendWhatsApp(person.whatsapp_number, message);
     results.push({ name: person.name, number: person.whatsapp_number, taskCount: tasks.length, ...result });
